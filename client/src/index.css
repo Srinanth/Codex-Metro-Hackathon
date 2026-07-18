@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #1E293B;
+  --color-primary: #2563EB;
+  --color-accent: #14B8A6;
+  --color-border: #334155;
+  --color-muted: #94A3B8;
+  --color-foreground: #F8FAFC;
+}
+
+@layer base {
+  * { @apply border-border; }
+  body { @apply min-h-screen bg-[#0F172A] text-foreground antialiased; }
+  button, input { font: inherit; }
+}
