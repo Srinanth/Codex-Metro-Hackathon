@@ -2,6 +2,7 @@ import { Plus, Search, SlidersHorizontal, Wrench } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { DataDetails, hasDisplayValue } from "@/components/data-details";
 import { Dialog, EmptyState, LoadingCards, PageHeader } from "@/components/dashboard-ui";
 import { useOwnerBusiness } from "@/hooks/use-owner-business";
 import { createOperation, getOperations } from "@/services/api";
@@ -29,7 +30,7 @@ function Select({ value, onChange, options, label, includeAll = true }: { value:
 function Input({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) { return <label className="text-sm text-muted">{label}<input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-2 h-10 w-full rounded-lg border border-border bg-[#0F172A] px-3 text-sm text-foreground outline-none focus:border-primary" /></label>; }
 function JsonInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="mt-4 block text-sm text-muted">{label}<textarea value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 min-h-28 w-full rounded-lg border border-border bg-[#0F172A] p-3 font-mono text-xs text-foreground outline-none focus:border-primary" /></label>; }
 function Value({ label, value }: { label: string; value: string }) { return <div><dt className="text-xs font-medium uppercase tracking-wider text-muted">{label}</dt><dd className="mt-2 text-sm capitalize">{value}</dd></div>; }
-function JsonValue({ label, value }: { label: string; value: Record<string, unknown> }) { return <div><dt className="text-xs font-medium uppercase tracking-wider text-muted">{label}</dt><dd className="mt-2"><pre className="overflow-auto rounded-lg border border-border bg-[#0F172A] p-3 text-xs leading-5 text-muted">{JSON.stringify(value, null, 2)}</pre></dd></div>; }
+function JsonValue({ label, value }: { label: string; value: Record<string, unknown> }) { if (!hasDisplayValue(value)) return null; return <div><dt className="text-xs font-medium uppercase tracking-wider text-muted">{label}</dt><dd className="mt-2"><DataDetails value={value} /></dd></div>; }
 function parseObject(value: string, label: string): Record<string, unknown> { try { const parsed: unknown = JSON.parse(value); if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(); return parsed as Record<string, unknown>; } catch { throw new Error(`${label} must contain a valid JSON object.`); } }
 function customerName(data: Record<string, unknown>) { const customer = data.customer; if (typeof customer === "string") return customer; const name = data.customerName; return typeof name === "string" ? name : "—"; }
 function date(value: string) { return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)); }
