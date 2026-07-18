@@ -11,6 +11,15 @@
 
 @layer base {
   * { @apply border-border; }
+  html { @apply bg-[#0F172A]; }
   body { @apply min-h-screen bg-[#0F172A] text-foreground antialiased; }
-  button, input { font: inherit; }
+  button, input, textarea, select { font: inherit; }
+  ::selection { @apply bg-primary text-white; }
+  :focus-visible { @apply outline-none ring-2 ring-primary ring-offset-2 ring-offset-[#0F172A]; }
+}
+
+@layer components {
+  .page-shell { @apply mx-auto w-full max-w-7xl px-5 md:px-8; }
+  .eyebrow { @apply text-xs font-semibold uppercase tracking-[0.16em] text-accent; }
+  .section-copy { @apply max-w-2xl text-sm leading-6 text-muted; }
 }
