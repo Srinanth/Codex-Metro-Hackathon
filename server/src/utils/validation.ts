@@ -41,10 +41,18 @@ export const updateRecordSchema = createRecordSchema.partial().refine(
 export const createInteractionSchema = z.object({
   businessId: objectId,
   message: text,
-  history: z.array(z.object({
-    role: z.enum(["user", "assistant"]),
-    content: text,
-  })).optional(),
+  // A streamed assistant bubble can be empty if a page is refreshed between
+  // creating the bubble and receiving its first token. It has no conversational
+  // meaning, so omit it before validating the remaining history.
+  history: z.preprocess(
+    (value) => Array.isArray(value)
+      ? value.filter((entry) => typeof entry === "object" && entry !== null && "content" in entry && typeof entry.content === "string" && entry.content.trim().length > 0)
+      : value,
+    z.array(z.object({
+      role: z.enum(["user", "assistant"]),
+      content: text,
+    })),
+  ).optional(),
 });
 
 export const extractBusinessSchema = z.object({

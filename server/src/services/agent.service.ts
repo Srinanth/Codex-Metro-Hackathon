@@ -4,11 +4,13 @@ import { z } from "zod";
 import { receptionistAgent } from "../agents/receptionist.agent.js";
 import { generateBusinessPrompt } from "../agents/prompt-generator.js";
 import { createEngineRegistry } from "../engines/registered-engines.js";
+import { isValidCustomerName } from "../engines/engine-utils.js";
+import { explainBusinessInformation } from "../tools/business-tools.js";
 import { DispatcherService } from "./dispatcher.service.js";
 import { BusinessService } from "./business.service.js";
 import { RecordService } from "./record.service.js";
 import type { AgentInteraction, BusinessExtraction, InteractionInput } from "../types/interaction.js";
-import type { OperationResult } from "../types/operation.js";
+import type { OperationRequest, OperationResult } from "../types/operation.js";
 
 const operationSchema = z.object({
   action: z.string(),
@@ -65,22 +67,23 @@ export class AgentService {
       structuredOutput: { schema: agentInteractionSchema },
     });
 
-    const operationResult = requestContext.get("operationResult");
-    const validatedOperationResult = isOperationResult(operationResult) ? operationResult : null;
+    const contextualOperationResult = requestContext.get("operationResult");
+    const operationResult = isOperationResult(contextualOperationResult)
+      ? contextualOperationResult
+      : await this.executeDeclaredTool(result.object.tool, result.object.arguments, business, input.message, input.history ?? []);
 
-    // A factual tool result is already customer-ready and authoritative. Returning it
-    // directly prevents the model from replying with a progress message such as
-    // "I am checking" after it has completed the tool call.
-    if (result.object.tool === "explain" && validatedOperationResult?.success) {
+    // Tool output is authoritative. Returning it directly prevents the model from
+    // emitting a progress update after declaring (or executing) a tool request.
+    if (operationResult && result.object.tool) {
       return {
         ...result.object,
         intent: "tool_call",
-        response: validatedOperationResult.message,
-        operationResult: validatedOperationResult,
+        response: formatOperationResponse(operationResult),
+        operationResult,
       };
     }
 
-    return { ...result.object, operationResult: validatedOperationResult };
+    return { ...result.object, operationResult: null };
   }
 
   async extractBusiness(description: string): Promise<BusinessExtraction> {
@@ -110,6 +113,99 @@ ${description}`;
     });
     return result.object;
   }
+
+  private async executeDeclaredTool(
+    tool: AgentInteraction["tool"],
+    arguments_: AgentInteraction["arguments"],
+    business: Awaited<ReturnType<BusinessService["findById"]>>,
+    customerMessage: string,
+    history: NonNullable<InteractionInput["history"]>,
+  ): Promise<OperationResult | null> {
+    if (!tool || !arguments_) return null;
+
+    if (tool === "explain") {
+      return "topic" in arguments_ ? explainBusinessInformation(business, arguments_.topic) : null;
+    }
+
+    if (!("capability" in arguments_)) return null;
+    const conversationText = [...history.map(({ content }) => content), customerMessage].join("\n");
+    const normalizedRequest = normalizeDatePayload(arguments_, conversationText);
+    const appointmentRequest = completeAppointmentPayload(normalizedRequest, customerMessage, conversationText);
+
+    return this.dispatcher.dispatch({
+      ...appointmentRequest,
+      method: tool,
+    }, business);
+  }
+}
+
+function normalizeDatePayload(request: OperationRequest, customerMessage: string, now = new Date()): OperationRequest {
+  const payload = { ...request.payload };
+  const suppliedDate = typeof payload.date === "string" ? payload.date.trim().toLowerCase() : "";
+  const inferredDate = relativeDateFromText(suppliedDate || customerMessage, now);
+
+  if (inferredDate) payload.date = inferredDate;
+  return { ...request, payload };
+}
+
+function completeAppointmentPayload(request: OperationRequest, customerMessage: string, conversationText: string): OperationRequest {
+  if (request.capability !== "appointments" || request.action !== "create") return request;
+
+  const payload = { ...request.payload };
+  if (typeof payload.startTime !== "string" || payload.startTime.trim().length === 0) {
+    const startTime = findTime(conversationText);
+    if (startTime) payload.startTime = startTime;
+  }
+
+  if (typeof payload.customer !== "string" || !isValidCustomerName(payload.customer)) {
+    const customer = customerNameFromMessage(customerMessage);
+    if (customer) payload.customer = customer;
+    else delete payload.customer;
+  }
+
+  return { ...request, payload };
+}
+
+function findTime(value: string): string | null {
+  const matches = [...value.matchAll(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/gi)];
+  const match = matches.at(-1);
+  if (!match) return null;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2] ?? "0");
+  const meridiem = match[3]?.toLowerCase();
+  if (!meridiem || hour < 1 || hour > 12 || minute > 59) return null;
+  const normalizedHour = (hour % 12) + (meridiem === "pm" ? 12 : 0);
+  return `${String(normalizedHour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function customerNameFromMessage(message: string): string | null {
+  const trimmed = message.trim();
+  const explicitName = trimmed.match(/^(?:my name is|i am|i'm)\s+(.+)$/i)?.[1]?.trim() ?? trimmed;
+  return isValidCustomerName(explicitName) ? explicitName : null;
+}
+
+function relativeDateFromText(value: string, now: Date): string | null {
+  const normalized = value.toLowerCase();
+  const offset = normalized.includes("tomorrow") ? 1 : normalized.includes("today") ? 0 : null;
+  if (offset === null) return null;
+
+  const date = new Date(now);
+  date.setDate(date.getDate() + offset);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function formatOperationResponse(result: OperationResult): string {
+  if (!result.success) return result.message;
+
+  const slots = result.metadata.slots;
+  if (Array.isArray(slots)) {
+    return slots.length > 0
+      ? `Available times: ${slots.join(", ")}.`
+      : "No times are available for that date.";
+  }
+
+  return result.message;
 }
 
 function isOperationResult(value: unknown): value is OperationResult {

@@ -1,0 +1,14 @@
+{
+  "name": "bizzai",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.24.0",
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter @bizzai/client dev\" \"pnpm --filter @bizzai/server dev\"",
+    "build": "pnpm --filter @bizzai/client build && pnpm --filter @bizzai/server build",
+    "start": "pnpm --filter @bizzai/server start",
+    "seed": "pnpm --filter @bizzai/server seed"
+  },
+  "devDependencies": { "concurrently": "^9.1.2" }
+}
+

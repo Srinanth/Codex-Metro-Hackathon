@@ -21,3 +21,12 @@ export function configHours(business: Business, date: string): { start: string; 
 export function minutes(time: string): number | null { const match = time.match(/^(\d{1,2}):(\d{2})$/); if (!match) return null; const hour = Number(match[1]); const minute = Number(match[2]); return hour >= 0 && hour < 24 && minute >= 0 && minute < 60 ? hour * 60 + minute : null; }
 export function timeFromMinutes(value: number): string { return `${String(Math.floor(value / 60)).padStart(2, "0")}:${String(value % 60).padStart(2, "0")}`; }
 export function overlaps(startA: number, endA: number, startB: number, endB: number): boolean { return startA < endB && endA > startB; }
+
+const nonNameWords = new Set(["i", "need", "want", "book", "hair", "haircut", "cut", "appointment", "tomorrow", "today", "please", "can", "you", "me", "it", "services", "service"]);
+
+export function isValidCustomerName(value: string): boolean {
+  const parts = value.trim().split(/\s+/);
+  return parts.length >= 2
+    && parts.length <= 4
+    && parts.every((part) => /^[a-z][a-z'-]{1,}$/i.test(part) && !nonNameWords.has(part.toLowerCase()));
+}
