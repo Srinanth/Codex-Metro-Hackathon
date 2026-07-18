@@ -7,6 +7,7 @@ import { DataDetails } from "@/components/data-details";
 import { createBusiness, extractBusiness } from "@/services/api";
 import type { BusinessProfile } from "@/types";
 import { useToast } from "@/contexts/toast-context";
+import { useRole } from "@/contexts/role-context";
 
 const example = `My business is Tony's Classic Cuts, a barber shop in Indiranagar.
 We work Monday to Saturday, 10 AM to 8 PM.
@@ -17,6 +18,7 @@ type Step = "describe" | "extracting" | "review" | "saving" | "success";
 export function OwnerOnboardingPage() {
   const navigate = useNavigate();
   const { show, dismiss } = useToast();
+  const { setRole } = useRole();
   const [description, setDescription] = useState("");
   const [step, setStep] = useState<Step>("describe");
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
@@ -36,7 +38,7 @@ export function OwnerOnboardingPage() {
     if (!profile) return;
     setError(null); setStep("saving");
     const toastId = show("loading", "Saving your business profile…");
-    try { const business = await createBusiness(profile); const businessId = business.id ?? business._id; if (!businessId) throw new Error("Business was saved but no identifier was returned."); localStorage.setItem("ownerBusinessId", businessId); dismiss(toastId); show("success", "Business profile saved."); setStep("success"); window.setTimeout(() => navigate("/owner/dashboard"), 1100); }
+    try { const business = await createBusiness(profile); const businessId = business.id ?? business._id; if (!businessId) throw new Error("Business was saved but no identifier was returned."); localStorage.setItem("ownerBusinessId", businessId); localStorage.setItem("ownerBusinessName", business.name); setRole("owner"); dismiss(toastId); show("success", "Business profile saved."); setStep("success"); window.setTimeout(() => navigate("/owner/dashboard"), 1100); }
     catch (reason: unknown) { dismiss(toastId); const message = messageFrom(reason); setError(message); show("error", message); setStep("review"); }
   };
 

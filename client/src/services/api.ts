@@ -17,12 +17,25 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export function healthCheck() { return request<{ service: string }>("/health"); }
 export function extractBusiness(description: string) { return request<BusinessExtraction>("/ai/extract-business", { method: "POST", body: JSON.stringify({ description }) }); }
-export function createBusiness(profile: BusinessProfile) { return request<Business>("/business", { method: "POST", body: JSON.stringify(profile) }); }
-export function getBusiness(id: string) { return request<Business>(`/business/${id}`); }
-export function getBusinesses() { return request<Business[]>("/business"); }
+export async function createBusiness(profile: BusinessProfile) { return normalizeBusiness(await request<Business>("/business", { method: "POST", body: JSON.stringify(profile) })); }
+export async function getBusiness(id: string) { return normalizeBusiness(await request<Business>(`/business/${id}`)); }
+export async function getBusinesses() { return (await request<Business[]>("/business")).map(normalizeBusiness); }
 export function getOperations() { return request<Operation[]>("/records"); }
 export function createOperation(operation: Pick<Operation, "businessId" | "entityType" | "status" | "data" | "metadata">) { return request<Operation>("/records", { method: "POST", body: JSON.stringify(operation) }); }
 export function sendReceptionistMessage(businessId: string, message: string, history: Array<{ role: "user" | "assistant"; content: string }>) {
   const meaningfulHistory = history.filter(({ content }) => content.trim().length > 0);
   return request<ReceptionistReply>("/ai/interactions", { method: "POST", body: JSON.stringify({ businessId, message, history: meaningfulHistory }) });
+}
+
+function normalizeBusiness(business: Business): Business {
+  return {
+    ...business,
+    configuration: isRecord(business.configuration) ? business.configuration : {},
+    capabilities: Array.isArray(business.capabilities) ? business.capabilities : [],
+    rules: Array.isArray(business.rules) ? business.rules : [],
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
