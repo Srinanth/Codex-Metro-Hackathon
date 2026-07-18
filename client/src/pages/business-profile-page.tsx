@@ -20,5 +20,35 @@ function message(role: ChatMessage["role"], content: string): ChatMessage { retu
 async function revealResponse(response: string, update: (content: string) => void) { const words = response.split(/(\s+)/); let content = ""; for (const word of words) { content += word; update(content); await new Promise<void>((resolve) => window.setTimeout(resolve, 9)); } }
 function loadMessages(key: string): ChatMessage[] { try { const raw = sessionStorage.getItem(key); const parsed: unknown = raw ? JSON.parse(raw) : []; return Array.isArray(parsed) ? parsed as ChatMessage[] : []; } catch { return []; } }
 function promptsFor(type: string) { const value = type.toLowerCase(); if (value.includes("barber") || value.includes("salon")) return ["I need a haircut tomorrow.", "Do you have anything available after 6 PM?", "What services do you offer?"]; if (value.includes("restaurant")) return ["What are your popular dishes?", "Can I reserve a table for tonight?", "What are your working hours?"]; if (value.includes("bakery")) return ["Can I order a cake for tomorrow?", "What products do you have?", "What are your working hours?"]; return ["What services do you offer?", "What are your working hours?", "How can you help me?"]; }
-function display(value: unknown) { return typeof value === "string" ? <p className="text-sm text-muted">{value}</p> : <pre className="overflow-auto rounded-lg border border-border bg-[#0F172A] p-3 text-xs text-muted">{JSON.stringify(value, null, 2)}</pre>; }
+function display(value: unknown) {
+  if (typeof value === "string") return <p className="text-sm text-muted">{value}</p>;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return <p className="text-sm text-muted">Ask the receptionist for current hours.</p>;
+
+  const dayOrder = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  const hours = value as Record<string, unknown>;
+  const entries = dayOrder.flatMap((day) => {
+    const schedule = hours[day] ?? hours[day.slice(0, 3)];
+    const label = `${day.charAt(0).toUpperCase()}${day.slice(1)}`;
+    if (typeof schedule === "string") return [[label, schedule] as const];
+    if (schedule && typeof schedule === "object" && !Array.isArray(schedule)) {
+      const record = schedule as Record<string, unknown>;
+      if (typeof record.start === "string" && typeof record.end === "string") return [[label, `${formatTime(record.start)} – ${formatTime(record.end)}`] as const];
+    }
+    return [];
+  });
+
+  return entries.length > 0
+    ? <dl className="space-y-2 text-sm text-muted">{entries.map(([day, schedule]) => <div key={day} className="flex justify-between gap-4"><dt>{day}</dt><dd className="text-right text-foreground">{schedule}</dd></div>)}</dl>
+    : <p className="text-sm text-muted">Ask the receptionist for current hours.</p>;
+}
+
+function formatTime(value: string) {
+  const match = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return value;
+  const hour = Number(match[1]);
+  const minute = match[2];
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}${minute === "00" ? "" : `:${minute}`} ${suffix}`;
+}
 function ProfileSkeleton() { return <main className="mx-auto max-w-5xl p-8"><div className="h-7 w-28 animate-pulse rounded bg-slate-700" /><div className="mt-5 h-12 w-2/3 animate-pulse rounded bg-slate-700" /><div className="mt-8 h-24 animate-pulse rounded-xl bg-slate-700" /></main>; }

@@ -78,8 +78,16 @@ export class AgentService {
       return {
         ...result.object,
         intent: "tool_call",
+        // Tools are an internal implementation detail. Only mutations need a
+        // customer-visible confirmation card; read operations are plain replies.
+        tool: null,
+        arguments: null,
         response: formatOperationResponse(operationResult),
-        operationResult,
+        // The chat card needs only confirmation state and a customer-facing message.
+        // Never expose database records, internal IDs, or metadata to customers.
+        operationResult: result.object.tool === "mutate"
+          ? { ...operationResult, operation: null, metadata: {} }
+          : null,
       };
     }
 
@@ -200,12 +208,31 @@ function formatOperationResponse(result: OperationResult): string {
 
   const slots = result.metadata.slots;
   if (Array.isArray(slots)) {
+    const formattedSlots = slots.map((slot) => typeof slot === "string" ? formatCustomerTime(slot) : String(slot));
     return slots.length > 0
-      ? `Available times: ${slots.join(", ")}.`
+      ? `Available times: ${formattedSlots.join(", ")}.`
       : "No times are available for that date.";
   }
 
+  const appointments = result.metadata.appointments;
+  if (Array.isArray(appointments)) {
+    return appointments.length === 0
+      ? "There are no appointments on the schedule yet. What date would you like to book?"
+      : `I found ${appointments.length} appointment${appointments.length === 1 ? "" : "s"} on the schedule.`;
+  }
+
   return result.message;
+}
+
+function formatCustomerTime(value: string): string {
+  const match = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return value;
+  const hour = Number(match[1]);
+  const minute = match[2];
+  if (hour > 23 || minute === undefined) return value;
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const displayHour = hour % 12 || 12;
+  return `${displayHour}:${minute} ${suffix}`;
 }
 
 function isOperationResult(value: unknown): value is OperationResult {
