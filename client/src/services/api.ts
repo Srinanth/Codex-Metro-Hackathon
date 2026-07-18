@@ -20,6 +20,7 @@ export function extractBusiness(description: string) { return request<BusinessEx
 export async function createBusiness(profile: BusinessProfile) { return normalizeBusiness(await request<Business>("/business", { method: "POST", body: JSON.stringify(profile) })); }
 export async function getBusiness(id: string) { return normalizeBusiness(await request<Business>(`/business/${id}`)); }
 export async function getBusinesses() { return (await request<Business[]>("/business")).map(normalizeBusiness); }
+export async function updateBusiness(id: string, changes: Partial<BusinessProfile & Pick<Business, "description" | "phone" | "email" | "address">>) { return normalizeBusiness(await request<Business>(`/business/${id}`, { method: "PUT", body: JSON.stringify(changes) })); }
 export function getOperations() { return request<Operation[]>("/records"); }
 export function createOperation(operation: Pick<Operation, "businessId" | "entityType" | "status" | "data" | "metadata">) { return request<Operation>("/records", { method: "POST", body: JSON.stringify(operation) }); }
 export function sendReceptionistMessage(businessId: string, message: string, history: Array<{ role: "user" | "assistant"; content: string }>) {
